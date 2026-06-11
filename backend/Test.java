@@ -1,0 +1,1 @@
+public class Test { public static void main(String[] args) { System.out.println(new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().matches(\" "admin123\, \.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBpwTkVPex5the\)); } } 
