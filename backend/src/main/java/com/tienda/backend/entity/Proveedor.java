@@ -43,6 +43,7 @@ public class Proveedor {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @OneToMany(mappedBy = "proveedor", fetch = FetchType.LAZY)
     private List<Compra> compras;
 

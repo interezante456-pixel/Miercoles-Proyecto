@@ -1,5 +1,7 @@
 package com.tienda.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -8,6 +10,7 @@ import java.util.List;
 @Entity
 @Table(name = "almacenes")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Almacen {
 
     @Id
@@ -27,6 +30,7 @@ public class Almacen {
     @Builder.Default
     private Boolean activo = true;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "almacen", fetch = FetchType.LAZY)
     private List<Producto> productos;
 }

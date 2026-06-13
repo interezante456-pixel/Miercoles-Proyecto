@@ -51,7 +51,7 @@ public class Producto {
     @JoinColumn(name = "categoria_id", nullable = false)
     private Categoria categoria;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "almacen_id")
     private Almacen almacen;
 
