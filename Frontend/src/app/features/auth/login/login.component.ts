@@ -14,8 +14,8 @@ import { AuthService } from '../../../core/services/auth.service';
       <div class="brand-panel">
         <div class="brand-content">
           <div class="brand-icon">🏪</div>
-          <h1 class="brand-title">TiendaPro</h1>
-          <p class="brand-subtitle">Sistema de Gestión Comercial</p>
+          <h1 class="brand-title">Tiendas Mi Cholo S.A.C.</h1>
+          <p class="brand-subtitle">Sistema de Gestión de Abarrotes</p>
           <div class="brand-features">
             <div class="feature">✅ Control de Inventario en tiempo real</div>
             <div class="feature">✅ Reportes PDF automáticos</div>

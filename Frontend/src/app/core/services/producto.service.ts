@@ -15,4 +15,5 @@ export class ProductoService {
   create(p: Partial<Producto>): Observable<Producto>  { return this.http.post<Producto>(this.API, p); }
   update(id: number, p: Partial<Producto>): Observable<Producto> { return this.http.put<Producto>(`${this.API}/${id}`, p); }
   delete(id: number): Observable<void>            { return this.http.delete<void>(`${this.API}/${id}`); }
+  importar(payload: Partial<Producto>[]): Observable<Producto[]> { return this.http.post<Producto[]>(`${this.API}/importar`, payload); }
 }

@@ -43,6 +43,17 @@ public class Producto {
     @Column(name = "imagen_url", length = 500)
     private String imagenUrl;
 
+    @Column(name = "codigo_barras", length = 50)
+    private String codigoBarras;
+
+    @Column(name = "unidad_medida", nullable = false, length = 50)
+    @Builder.Default
+    private String unidadMedida = "UNIDADES";
+
+    @Column(nullable = false, length = 10)
+    @Builder.Default
+    private String moneda = "PEN";
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean activo = true;

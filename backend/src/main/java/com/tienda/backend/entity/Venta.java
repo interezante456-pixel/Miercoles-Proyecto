@@ -6,7 +6,9 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "ventas")
@@ -53,6 +55,7 @@ public class Venta {
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<DetalleVenta> detalles = new ArrayList<>();
@@ -68,3 +71,4 @@ public class Venta {
     public enum TipoComprobante { BOLETA, FACTURA, TICKET }
     public enum EstadoVenta    { PENDIENTE, COMPLETADA, ANULADA }
 }
+

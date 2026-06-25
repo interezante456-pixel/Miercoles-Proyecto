@@ -20,9 +20,9 @@ export class AuthService {
   login(request: LoginRequest): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.API}/login`, request).pipe(
       tap(response => {
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem(this.TOKEN_KEY, response.token);
-          localStorage.setItem(this.USER_KEY, JSON.stringify(response));
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem(this.TOKEN_KEY, response.token);
+          window.localStorage.setItem(this.USER_KEY, JSON.stringify(response));
         }
         this.currentUserSubject.next(response);
       })
@@ -30,17 +30,17 @@ export class AuthService {
   }
 
   logout(): void {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem(this.TOKEN_KEY);
-      localStorage.removeItem(this.USER_KEY);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.removeItem(this.TOKEN_KEY);
+      window.localStorage.removeItem(this.USER_KEY);
     }
     this.currentUserSubject.next(null);
     this.router.navigate(['/login']);
   }
 
   getToken(): string | null {
-    if (typeof localStorage !== 'undefined') {
-      return localStorage.getItem(this.TOKEN_KEY);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage.getItem(this.TOKEN_KEY);
     }
     return null;
   }
@@ -62,8 +62,8 @@ export class AuthService {
   }
 
   private loadUser(): AuthResponse | null {
-    if (typeof localStorage !== 'undefined') {
-      const stored = localStorage.getItem(this.USER_KEY);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem(this.USER_KEY);
       return stored ? JSON.parse(stored) : null;
     }
     return null;

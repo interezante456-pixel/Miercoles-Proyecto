@@ -7,7 +7,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "compras")
@@ -55,6 +57,7 @@ public class Compra {
     @Column(name = "fecha_esperada")
     private LocalDate fechaEsperada;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "compra", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<DetalleCompra> detalles = new ArrayList<>();
@@ -66,3 +69,4 @@ public class Compra {
 
     public enum EstadoCompra { PENDIENTE, RECIBIDA, PARCIAL, ANULADA }
 }
+

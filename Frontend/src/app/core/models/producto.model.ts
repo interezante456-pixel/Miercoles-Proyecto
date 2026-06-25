@@ -24,6 +24,9 @@ export interface Producto {
   stockActual: number;
   stockMinimo: number;
   imagenUrl?: string;
+  codigoBarras?: string;
+  unidadMedida?: string;
+  moneda?: string;
   activo?: boolean;
   categoria: Categoria;
   categoriaId?: number;

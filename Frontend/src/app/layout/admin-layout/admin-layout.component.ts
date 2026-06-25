@@ -24,7 +24,7 @@ interface NavItem {
             <div class="logo-icon">🏪</div>
             @if (!collapsed()) {
               <div class="logo-text">
-                <span class="logo-name">TiendaPro</span>
+                <span class="logo-name">Tiendas Mi Cholo S.A.C.</span>
                 <span class="logo-version">v1.0</span>
               </div>
             }
@@ -251,11 +251,11 @@ export class AdminLayoutComponent {
     { label: 'Dashboard',  icon: '📊', route: '/dashboard' },
     { label: 'Usuarios',   icon: '👥', route: '/usuarios',    roles: ['ADMIN'] },
     { label: 'Productos',  icon: '📦', route: '/productos' },
-    { label: 'Categorías', icon: '🏷️', route: '/categorias' },
+    { label: 'Categorías', icon: '🏷️', route: '/categorias',   roles: ['ADMIN', 'ALMACENERO'] },
     { label: 'Clientes',   icon: '🤝', route: '/clientes' },
-    { label: 'Proveedores',icon: '🏭', route: '/proveedores' },
+    { label: 'Proveedores',icon: '🏭', route: '/proveedores',  roles: ['ADMIN', 'ALMACENERO'] },
     { label: 'Ventas',     icon: '💰', route: '/ventas' },
-    { label: 'Compras',    icon: '🛒', route: '/compras' },
+    { label: 'Compras',    icon: '🛒', route: '/compras',      roles: ['ADMIN', 'ALMACENERO'] },
     { label: 'Inventario', icon: '🗄️', route: '/inventario' },
     { label: 'Reportes',   icon: '📄', route: '/reportes',    roles: ['ADMIN'] },
   ];

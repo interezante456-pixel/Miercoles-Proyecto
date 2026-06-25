@@ -29,10 +29,20 @@ public class ProductoRequest {
 
     private String imagenUrl;
 
-    @NotNull
     private Long categoriaId;
 
     private Long almacenId;
+
+    private String categoriaNombre;
+
+    @Size(max = 50)
+    private String codigoBarras;
+
+    @Size(max = 50)
+    private String unidadMedida = "UNIDADES";
+
+    @Size(max = 10)
+    private String moneda = "PEN";
 
     private Boolean activo = true;
 }

@@ -20,10 +20,11 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
 
     List<Producto> findByCategoriaId(Long categoriaId);
 
-    // JPQL — búsqueda por nombre o código
+    // JPQL — búsqueda por nombre, código o código de barras
     @Query("SELECT p FROM Producto p WHERE p.activo = true AND " +
            "(LOWER(p.nombre) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
-           " LOWER(p.codigo) LIKE LOWER(CONCAT('%', :q, '%')))")
+           " LOWER(p.codigo) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+           " (p.codigoBarras IS NOT NULL AND LOWER(p.codigoBarras) LIKE LOWER(CONCAT('%', :q, '%'))))")
     List<Producto> buscar(@Param("q") String q);
 
     // JPQL — productos con stock bajo (stock_actual <= stock_minimo)
