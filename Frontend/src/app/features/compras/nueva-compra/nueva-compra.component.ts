@@ -122,8 +122,32 @@ export class NuevaCompraComponent implements OnInit {
   }
 
   buscarProducto(e: Event): void {
-    const q = (e.target as HTMLInputElement).value.toLowerCase();
-    this.productosFiltrados.set(q.length > 1 ? this.productos().filter(p => p.nombre.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q)).slice(0, 6) : []);
+    const inputElement = e.target as HTMLInputElement;
+    const q = inputElement.value.trim().toLowerCase();
+    
+    if (q.length > 1) {
+      // 1. Buscar coincidencia exacta por código de barras (escaneo rápido)
+      const exacto = this.productos().find(p => 
+        p.codigoBarras && p.codigoBarras.trim().toLowerCase() === q
+      );
+
+      if (exacto) {
+        this.error.set(''); // Limpiar errores previos
+        this.agregar(exacto);
+        inputElement.value = '';
+        this.productosFiltrados.set([]);
+        return;
+      }
+
+      // 2. Búsqueda normal por nombre, código interno o código de barras parcial
+      this.productosFiltrados.set(this.productos().filter(p => 
+        p.nombre.toLowerCase().includes(q) || 
+        p.codigo.toLowerCase().includes(q) ||
+        (p.codigoBarras && p.codigoBarras.toLowerCase().includes(q))
+      ).slice(0, 6));
+    } else {
+      this.productosFiltrados.set([]);
+    }
   }
 
   agregar(p: Producto): void {

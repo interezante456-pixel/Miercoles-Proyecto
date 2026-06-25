@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal, ViewChild, ElementRef, AfterViewInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { VentaService, ClienteService } from '../../../core/services/api-services';
@@ -24,36 +24,44 @@ interface ItemCarrito {
     <div class="animate-fadein">
       <div class="page-header">
         <div>
-          <h1 class="page-title">💰 Nueva Venta</h1>
-          <p class="page-subtitle">Registra una nueva venta al cliente</p>
+          <h1 class="page-title">💰 Módulo de Ventas POS</h1>
+          <p class="page-subtitle">Facturación rápida, escaneo de códigos de barra y atajos de teclado</p>
         </div>
         <button class="btn btn-secondary" (click)="router.navigate(['/ventas'])">← Volver</button>
       </div>
 
       <div class="venta-layout">
-        <!-- Panel Izquierdo: Búsqueda y Carrito -->
+        <!-- Panel Izquierdo: Cliente y Catálogo -->
         <div class="venta-left">
-          <!-- Cliente -->
-          <div class="card mb-16">
-            <h3 class="card-title" style="margin-bottom:16px">👤 Datos del Cliente</h3>
+          
+          <!-- Datos de Cliente -->
+          <div class="card-pos mb-16">
+            <div class="card-pos-header">
+              <h3 class="card-pos-title">👤 Datos del Cliente</h3>
+              <span class="badge" [class.badge-info]="tipoComprobante !== 'FACTURA'" [class.badge-warning]="tipoComprobante === 'FACTURA'">
+                🧾 {{ tipoComprobante }}
+              </span>
+            </div>
             
-            <div class="form-group">
-              <label class="form-label">Tipo Comprobante</label>
+            <div class="form-group mb-16">
+              <label class="form-label">Tipo de Comprobante</label>
               <select [(ngModel)]="tipoComprobante" (change)="onComprobanteChange()" class="form-select" style="width:auto"
                       [ngModelOptions]="{standalone: true}">
-                <option value="BOLETA">Boleta</option>
-                <option value="FACTURA">Factura</option>
-                <option value="TICKET">Ticket</option>
+                <option value="BOLETA">Boleta de Venta</option>
+                <option value="FACTURA">Factura Electrónica</option>
+                <option value="TICKET">Ticket de Venta</option>
               </select>
             </div>
 
             @if (clienteSeleccionado()) {
               <div class="form-group animate-fadein">
                 <label class="form-label">Cliente Seleccionado</label>
-                <div class="selected-card">
-                  <span>{{ clienteSeleccionado()?.nombres }} {{ clienteSeleccionado()?.apellidos }}</span>
-                  <small>{{ clienteSeleccionado()?.tipoDoc }}: {{ clienteSeleccionado()?.nroDoc }}</small>
-                  <button class="btn btn-sm btn-danger" (click)="deseleccionarCliente()">✕</button>
+                <div class="selected-card" style="background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2); border-radius: 8px; padding: 12px; display: flex; align-items: center; justify-content: space-between;">
+                  <div>
+                    <strong style="display:block; color:var(--text-primary);">{{ clienteSeleccionado()?.nombres }} {{ clienteSeleccionado()?.apellidos }}</strong>
+                    <small style="color:var(--text-secondary);">{{ clienteSeleccionado()?.tipoDoc }}: {{ clienteSeleccionado()?.nroDoc }}</small>
+                  </div>
+                  <button class="btn btn-sm btn-danger btn-icon" (click)="deseleccionarCliente()" title="Cambiar Cliente">✕</button>
                 </div>
               </div>
             } @else {
@@ -61,14 +69,17 @@ interface ItemCarrito {
               <div class="form-group" style="position: relative;">
                 <label class="form-label">
                   @if (tipoComprobante === 'FACTURA') {
-                    Buscar Cliente por Razón Social o RUC
+                    Buscar Cliente por Razón Social o RUC <span class="text-muted">(Atajo: F4)</span>
                   } @else {
-                    Buscar o Registrar Cliente (Opcional)
+                    Buscar o Registrar Cliente (Opcional) <span class="text-muted">(Atajo: F4)</span>
                   }
                 </label>
-                <input type="text" [(ngModel)]="busquedaCliente" (input)="buscarCliente($event)" class="form-control"
-                       [placeholder]="tipoComprobante === 'FACTURA' ? 'Buscar Razón Social o RUC...' : 'Escribe nombre, DNI o deja vacío para Público General...'"
-                       [ngModelOptions]="{standalone: true}">
+                <div style="position: relative;">
+                  <input #clienteInput type="text" [(ngModel)]="busquedaCliente" (input)="buscarCliente($event)" class="form-control"
+                         [placeholder]="tipoComprobante === 'FACTURA' ? 'Buscar Razón Social o RUC...' : 'Escribe nombre, DNI o deja vacío para Público General...'"
+                         [ngModelOptions]="{standalone: true}">
+                  <span style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; color: var(--text-muted);">[F4]</span>
+                </div>
                 
                 @if (clientesFiltrados().length > 0) {
                   <div class="dropdown-list">
@@ -112,14 +123,23 @@ interface ItemCarrito {
             }
           </div>
 
-          <!-- Búsqueda Producto -->
-          <div class="card mb-16">
-            <h3 class="card-title" style="margin-bottom:12px">📦 Agregar Productos</h3>
-            <div class="search-bar" style="max-width:100%">
-              <span class="search-icon">🔍</span>
-              <input type="text" placeholder="Buscar producto por nombre o código..."
-                     (input)="buscarProducto($event)" />
+          <!-- Búsqueda y Grid de Productos -->
+          <div class="card-pos mb-16">
+            <div class="card-pos-header">
+              <h3 class="card-pos-title">📦 Agregar Productos</h3>
+              <div class="scanner-badge">
+                <div class="pulse-dot"></div>
+                <span>Lector Activo</span>
+              </div>
             </div>
+            
+            <div class="search-bar" style="max-width:100%; position: relative;">
+              <span class="search-icon">🔍</span>
+              <input #buscarInput type="text" placeholder="Escanea código de barras o escribe para buscar... (F2)"
+                     (input)="buscarProducto($event)" style="padding-right: 48px;" />
+              <span style="position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">[F2]</span>
+            </div>
+            
             @if (productosFiltrados().length > 0) {
               <div class="productos-grid">
                 @for (p of productosFiltrados(); track p.id) {
@@ -127,8 +147,10 @@ interface ItemCarrito {
                        [class.sin-stock]="p.stockActual === 0">
                     <div class="producto-nombre">{{ p.nombre }}</div>
                     <div class="producto-info">
-                      <span>S/ {{ p.precioVenta | number:'1.2-2' }}</span>
-                      <span [class]="p.stockActual > 0 ? 'badge badge-success' : 'badge badge-danger'">Stock: {{ p.stockActual }}</span>
+                      <span class="producto-precio">S/ {{ p.precioVenta | number:'1.2-2' }}</span>
+                      <span class="badge-stock" [class.badge-stock-high]="p.stockActual > 5" [class.badge-stock-low]="p.stockActual <= 5">
+                        Stock: {{ p.stockActual }}
+                      </span>
                     </div>
                   </div>
                 }
@@ -137,45 +159,103 @@ interface ItemCarrito {
           </div>
         </div>
 
-        <!-- Panel Derecho: Carrito -->
+        <!-- Panel Derecho: Carrito y Caja -->
         <div class="venta-right">
-          <div class="card carrito">
-            <h3 class="card-title">🛒 Carrito de Venta</h3>
+          <div class="card-pos carrito">
+            <div class="card-pos-header">
+              <h3 class="card-pos-title">🛒 Carrito de Compra</h3>
+              <span class="cart-count">{{ getTotalCantidad() }} ítems</span>
+            </div>
+
             @if (carrito().length === 0) {
-              <div class="empty-carrito">
-                <span>🛒</span>
-                <p>Agrega productos al carrito</p>
+              <div class="empty-carrito" style="padding: 60px 20px;">
+                <span style="font-size: 3.5rem; display: block; margin-bottom: 12px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));">🛒</span>
+                <p style="font-weight: 500; color: var(--text-secondary);">El carrito está vacío</p>
+                <small style="color: var(--text-muted); display: block; margin-top: 4px;">Escanea productos o utiliza el buscador para agregarlos.</small>
               </div>
             } @else {
               <div class="carrito-items">
                 @for (item of carrito(); track item.producto.id) {
                   <div class="carrito-item">
-                    <div class="item-nombre">{{ item.producto.nombre }}</div>
+                    <div>
+                      <div class="item-nombre">{{ item.producto.nombre }}</div>
+                      <small style="color: var(--text-muted); font-size: 0.75rem;">S/ {{ item.precioUnitario | number:'1.2-2' }} c/u</small>
+                    </div>
                     <div class="item-controls">
-                      <button class="btn btn-sm btn-secondary" (click)="cambiarCantidad(item, -1)">-</button>
+                      <button class="btn-qty" (click)="cambiarCantidad(item, -1)">-</button>
                       <span class="item-qty">{{ item.cantidad }}</span>
-                      <button class="btn btn-sm btn-secondary" (click)="cambiarCantidad(item, 1)">+</button>
+                      <button class="btn-qty" (click)="cambiarCantidad(item, 1)">+</button>
                     </div>
                     <div class="item-precio">S/ {{ item.subtotal | number:'1.2-2' }}</div>
-                    <button class="btn btn-sm btn-danger btn-icon" (click)="quitarItem(item)">✕</button>
+                    <button class="btn-remove" (click)="quitarItem(item)" title="Quitar ítem">✕</button>
+                  </div>
+                }
+              </div>
+
+              <!-- Sección de Método de Pago y Vuelto -->
+              <div class="seccion-pago">
+                <div class="pago-title">Método de Pago</div>
+                <div class="pago-chips">
+                  <button type="button" class="chip-pago" [class.active]="metodoPago === 'EFECTIVO'" (click)="metodoPago = 'EFECTIVO'; montoRecibido = 0;">
+                    💵 Efectivo
+                  </button>
+                  <button type="button" class="chip-pago" [class.active]="metodoPago === 'TARJETA'" (click)="metodoPago = 'TARJETA'; montoRecibido = 0;">
+                    💳 Tarjeta
+                  </button>
+                  <button type="button" class="chip-pago" [class.active]="metodoPago === 'YAPE_PLIN'" (click)="metodoPago = 'YAPE_PLIN'; montoRecibido = 0;">
+                    📱 Yape/Plin
+                  </button>
+                </div>
+
+                @if (metodoPago === 'EFECTIVO') {
+                  <div class="efectivo-box animate-fadein">
+                    <div>
+                      <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px;">Paga con S/</label>
+                      <input type="number" [(ngModel)]="montoRecibido" class="form-control" style="font-size: 1rem; font-weight: 700;" placeholder="0.00" min="0">
+                    </div>
+                    <div class="vuelto-box">
+                      <span style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Vuelto</span>
+                      <span class="vuelto-monto">S/ {{ getVuelto() | number:'1.2-2' }}</span>
+                    </div>
                   </div>
                 }
               </div>
 
               <!-- Totales -->
               <div class="totales">
-                <div class="total-row"><span>Subtotal:</span><span>S/ {{ getSubtotal() | number:'1.2-2' }}</span></div>
-                <div class="total-row"><span>IGV (18%):</span><span>S/ {{ getIgv() | number:'1.2-2' }}</span></div>
-                <div class="total-row total-final"><span>TOTAL:</span><span>S/ {{ getTotal() | number:'1.2-2' }}</span></div>
+                <div class="total-row">
+                  <span>Subtotal:</span>
+                  <span>S/ {{ getSubtotal() | number:'1.2-2' }}</span>
+                </div>
+                <div class="total-row">
+                  <span>IGV (18%):</span>
+                  <span>S/ {{ getIgv() | number:'1.2-2' }}</span>
+                </div>
+                <div class="total-row total-final">
+                  <span>TOTAL:</span>
+                  <span>S/ {{ getTotal() | number:'1.2-2' }}</span>
+                </div>
               </div>
 
-              @if (error()) { <div class="alert alert-danger">{{ error() }}</div> }
+              @if (error()) { 
+                <div class="alert alert-danger" style="margin-bottom: 12px; font-size: 0.8rem; padding: 10px 12px; border-radius: 6px;">
+                  ⚠️ {{ error() }}
+                </div> 
+              }
 
               <button class="btn btn-primary btn-lg w-100"
                       [disabled]="!puedeRegistrarVenta()"
-                      (click)="registrarVenta()">
-                @if (loading()) { ⏳ Procesando... } @else { ✅ Confirmar Venta }
+                      (click)="registrarVenta()"
+                      style="font-size: 1rem; padding: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);">
+                @if (loading()) { ⏳ Procesando... } @else { ✅ Confirmar Venta [F9] }
               </button>
+
+              <!-- Guía de Atajos de Teclado -->
+              <div class="shortcut-guide">
+                <span><span class="key-cap">F2</span> Buscar Prod.</span>
+                <span><span class="key-cap">F4</span> Buscar Clie.</span>
+                <span><span class="key-cap">F9</span> Guardar Venta</span>
+              </div>
             }
           </div>
         </div>
@@ -183,42 +263,388 @@ interface ItemCarrito {
     </div>
   `,
   styles: [`
-    .venta-layout { display: grid; grid-template-columns: 1fr 380px; gap: 16px; }
+    .venta-layout { display: grid; grid-template-columns: 1fr 400px; gap: 20px; }
     .mb-16 { margin-bottom: 16px; }
 
-    .dropdown-list { position: absolute; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); z-index: 10; width: 100%; max-height: 200px; overflow-y: auto; margin-top: 4px; }
-    .dropdown-item { padding: 10px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid var(--border); }
-    .dropdown-item:hover { background: var(--bg-hover); }
-    .dropdown-item small { color: var(--text-muted); font-size: 0.75rem; }
+    /* Card styling */
+    .card-pos {
+      background: var(--bg-card);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      transition: all 0.3s ease;
+      padding: 20px;
+    }
+    
+    .card-pos-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
 
-    .selected-card { background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3); border-radius: var(--radius-sm); padding: 10px; display: flex; align-items: center; gap: 8px; }
-    .selected-card span { flex: 1; font-weight: 500; font-size: 0.875rem; }
-    .selected-card small { color: var(--text-muted); font-size: 0.75rem; }
+    .card-pos-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
 
-    .productos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; max-height: 280px; overflow-y: auto; }
-    .producto-card { padding: 12px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: var(--transition); }
-    .producto-card:hover:not(.sin-stock) { border-color: var(--primary); background: rgba(99,102,241,0.08); }
-    .producto-card.sin-stock { opacity: 0.4; cursor: not-allowed; }
-    .producto-nombre { font-weight: 500; font-size: 0.85rem; margin-bottom: 6px; }
-    .producto-info { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; }
+    /* Scanner Pulse */
+    .scanner-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #10b981;
+      background: rgba(16, 185, 129, 0.1);
+      padding: 4px 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+    
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulse 1.6s infinite;
+    }
 
-    .carrito { position: sticky; top: 24px; }
-    .empty-carrito { text-align: center; padding: 40px; color: var(--text-muted); }
-    .empty-carrito span { font-size: 3rem; display: block; margin-bottom: 8px; }
+    @keyframes pulse {
+      0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      }
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+      }
+      100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+      }
+    }
 
-    .carrito-items { max-height: 350px; overflow-y: auto; margin: 16px 0; }
-    .carrito-item { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border); }
-    .item-nombre { flex: 1; font-size: 0.85rem; font-weight: 500; }
-    .item-controls { display: flex; align-items: center; gap: 4px; }
-    .item-qty { min-width: 24px; text-align: center; font-weight: 600; }
-    .item-precio { font-weight: 600; color: var(--primary); min-width: 80px; text-align: right; }
+    /* Product card improvements */
+    .productos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+      max-height: 380px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    
+    .producto-card {
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .producto-card:hover:not(.sin-stock) {
+      transform: translateY(-2px);
+      border-color: var(--primary);
+      background: rgba(99, 102, 241, 0.05);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+    }
 
-    .totales { border-top: 1px solid var(--border); padding-top: 12px; margin-bottom: 16px; }
-    .total-row { display: flex; justify-content: space-between; padding: 4px 0; color: var(--text-secondary); }
-    .total-final { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px; }
+    .producto-card.sin-stock {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .producto-nombre {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+
+    .producto-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .producto-precio {
+      font-weight: 700;
+      color: #10b981;
+      font-size: 1rem;
+    }
+
+    .badge-stock {
+      font-size: 0.7rem;
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .badge-stock-high {
+      background: rgba(16, 185, 129, 0.1);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .badge-stock-low {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    /* Cart details */
+    .carrito {
+      position: sticky;
+      top: 24px;
+    }
+    
+    .cart-count {
+      background: var(--primary);
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .carrito-items {
+      max-height: 280px;
+      overflow-y: auto;
+      margin: 12px 0;
+      padding-right: 4px;
+    }
+
+    .carrito-item {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .item-nombre {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .item-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-qty {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-qty:hover {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+
+    .item-qty {
+      font-size: 0.85rem;
+      font-weight: 600;
+      min-width: 20px;
+      text-align: center;
+    }
+
+    .item-precio {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      min-width: 65px;
+      text-align: right;
+    }
+
+    .btn-remove {
+      background: transparent;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+
+    .btn-remove:hover {
+      opacity: 1;
+    }
+
+    /* Payment section styling */
+    .seccion-pago {
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+      margin-top: 12px;
+    }
+
+    .pago-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .pago-chips {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .chip-pago {
+      padding: 8px 4px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .chip-pago.active {
+      background: rgba(99,102,241,0.15);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .efectivo-box {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      animation: slideDown 0.25s ease-out;
+    }
+
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .vuelto-box {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-end;
+    }
+
+    .vuelto-monto {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: #10b981;
+    }
+
+    /* Totales section */
+    .totales {
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+      margin-bottom: 16px;
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+
+    .total-final {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--text-primary);
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+      margin-top: 6px;
+    }
+
+    /* Shortcut guide */
+    .shortcut-guide {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      border-top: 1px dashed var(--border);
+      padding-top: 8px;
+      margin-top: 12px;
+    }
+
+    .key-cap {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 4px;
+      padding: 1px 4px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-right: 2px;
+    }
+
+    .dropdown-list {
+      position: absolute;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      z-index: 10;
+      width: 100%;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 4px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .dropdown-item {
+      padding: 10px 14px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      border-bottom: 1px solid var(--border);
+    }
+    .dropdown-item:hover {
+      background: var(--bg-hover);
+    }
+    .dropdown-item small {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+    }
   `]
 })
-export class NuevaVentaComponent implements OnInit {
+export class NuevaVentaComponent implements OnInit, AfterViewInit {
   private ventaService = inject(VentaService);
   private clienteService = inject(ClienteService);
   private productoService = inject(ProductoService);
@@ -241,9 +667,68 @@ export class NuevaVentaComponent implements OnInit {
   rapidoDireccion = '';
   rapidoDni = '';
 
+  // Payment State
+  metodoPago = 'EFECTIVO';
+  montoRecibido = 0;
+
+  @ViewChild('buscarInput') buscarInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('clienteInput') clienteInput!: ElementRef<HTMLInputElement>;
+
   ngOnInit(): void {
     this.clienteService.getAll().subscribe(cs => this.clientes.set(cs));
     this.productoService.getAll().subscribe(ps => this.productos.set(ps));
+  }
+
+  ngAfterViewInit(): void {
+    this.focusBuscar();
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  handleKeyDown(event: KeyboardEvent) {
+    if (event.key === 'F2') {
+      event.preventDefault();
+      this.focusBuscar();
+    } else if (event.key === 'F4') {
+      event.preventDefault();
+      this.focusCliente();
+    } else if (event.key === 'F9') {
+      event.preventDefault();
+      if (this.puedeRegistrarVenta()) {
+        this.registrarVenta();
+      }
+    } else if (event.key === 'Escape') {
+      this.productosFiltrados.set([]);
+      this.clientesFiltrados.set([]);
+    }
+  }
+
+  focusBuscar(): void {
+    if (this.buscarInput) {
+      setTimeout(() => {
+        this.buscarInput.nativeElement.focus();
+        this.buscarInput.nativeElement.select();
+      }, 50);
+    }
+  }
+
+  focusCliente(): void {
+    if (this.clienteInput) {
+      setTimeout(() => {
+        this.clienteInput.nativeElement.focus();
+        this.clienteInput.nativeElement.select();
+      }, 50);
+    }
+  }
+
+  getVuelto(): number {
+    if (this.metodoPago !== 'EFECTIVO' || !this.montoRecibido) return 0;
+    const total = this.getTotal();
+    const vuelto = this.montoRecibido - total;
+    return vuelto > 0 ? vuelto : 0;
+  }
+
+  getTotalCantidad(): number {
+    return this.carrito().reduce((sum, item) => sum + item.cantidad, 0);
   }
 
   buscarCliente(event: Event): void {
@@ -266,10 +751,38 @@ export class NuevaVentaComponent implements OnInit {
   }
 
   buscarProducto(event: Event): void {
-    const q = (event.target as HTMLInputElement).value.toLowerCase();
-    this.productosFiltrados.set(q.length > 1 ? this.productos().filter(p =>
-      p.nombre.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q)
-    ).slice(0, 6) : []);
+    const inputElement = event.target as HTMLInputElement;
+    const q = inputElement.value.trim().toLowerCase();
+    
+    if (q.length > 1) {
+      // 1. Buscar coincidencia exacta por código de barras (escaneo rápido)
+      const exacto = this.productos().find(p => 
+        p.codigoBarras && p.codigoBarras.trim().toLowerCase() === q
+      );
+
+      if (exacto) {
+        if (exacto.stockActual === 0) {
+          this.error.set(`El producto "${exacto.nombre}" no tiene stock.`);
+          inputElement.value = '';
+          this.productosFiltrados.set([]);
+          return;
+        }
+        this.error.set(''); // Limpiar errores previos
+        this.agregarAlCarrito(exacto);
+        inputElement.value = '';
+        this.productosFiltrados.set([]);
+        return;
+      }
+
+      // 2. Búsqueda normal por nombre, código interno o código de barras parcial
+      this.productosFiltrados.set(this.productos().filter(p =>
+        p.nombre.toLowerCase().includes(q) || 
+        p.codigo.toLowerCase().includes(q) ||
+        (p.codigoBarras && p.codigoBarras.toLowerCase().includes(q))
+      ).slice(0, 6));
+    } else {
+      this.productosFiltrados.set([]);
+    }
   }
 
   agregarAlCarrito(p: Producto): void {
@@ -367,8 +880,14 @@ export class NuevaVentaComponent implements OnInit {
     this.loading.set(true);
     this.error.set('');
 
+    const detallePago = `Método de Pago: ${this.metodoPago}${
+      this.metodoPago === 'EFECTIVO' 
+        ? ` (Recibido: S/ ${this.montoRecibido.toFixed(2)}, Vuelto: S/ ${this.getVuelto().toFixed(2)})` 
+        : ''
+    }`;
+
     if (this.clienteSeleccionado()) {
-      this.completarVenta(this.clienteSeleccionado()!.id!);
+      this.completarVenta(this.clienteSeleccionado()!.id!, detallePago);
     } else {
       let nroDoc = '';
       let tipoDoc = 'DNI';
@@ -381,7 +900,7 @@ export class NuevaVentaComponent implements OnInit {
         if (nombreIngresado.length === 0) {
           const gen = this.clientes().find(c => c.nroDoc === 'VAR-GENERIC');
           if (gen) {
-            this.completarVenta(gen.id!);
+            this.completarVenta(gen.id!, detallePago);
             return;
           }
           nombres = 'Público';
@@ -400,7 +919,7 @@ export class NuevaVentaComponent implements OnInit {
         if (nombreIngresado.length === 0 && dniIngresado.length === 0) {
           const gen = this.clientes().find(c => c.nroDoc === 'TICK-GENERIC');
           if (gen) {
-            this.completarVenta(gen.id!);
+            this.completarVenta(gen.id!, detallePago);
             return;
           }
           nombres = 'Público';
@@ -423,7 +942,7 @@ export class NuevaVentaComponent implements OnInit {
 
       const existente = this.clientes().find(c => c.nroDoc === nroDoc);
       if (existente) {
-        this.completarVenta(existente.id!);
+        this.completarVenta(existente.id!, detallePago);
       } else {
         const nuevoCliente = {
           nombres,
@@ -436,7 +955,7 @@ export class NuevaVentaComponent implements OnInit {
         this.clienteService.create(nuevoCliente as any).subscribe({
           next: (c) => {
             this.clientes.update(list => [...list, c]);
-            this.completarVenta(c.id!);
+            this.completarVenta(c.id!, detallePago);
           },
           error: (err) => {
             this.error.set(err?.error?.error || 'Error al registrar el cliente');
@@ -447,10 +966,11 @@ export class NuevaVentaComponent implements OnInit {
     }
   }
 
-  completarVenta(clienteId: number): void {
+  completarVenta(clienteId: number, observacionesPago: string): void {
     const payload = {
       clienteId: clienteId,
       tipoComprobante: this.tipoComprobante,
+      observaciones: observacionesPago,
       detalles: this.carrito().map(i => ({
         productoId: i.producto.id!,
         cantidad: i.cantidad,
