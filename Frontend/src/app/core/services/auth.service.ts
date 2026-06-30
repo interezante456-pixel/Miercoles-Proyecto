@@ -3,11 +3,12 @@ import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { BehaviorSubject, Observable, tap } from 'rxjs';
 import { AuthResponse, LoginRequest } from '../models/usuario.model';
+import { API_URL } from '../config/api.config';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
 
-  private readonly API = 'http://localhost:8080/api/auth';
+  private readonly API = `${API_URL}/auth`;
   private readonly TOKEN_KEY = 'tienda_token';
   private readonly USER_KEY = 'tienda_user';
 

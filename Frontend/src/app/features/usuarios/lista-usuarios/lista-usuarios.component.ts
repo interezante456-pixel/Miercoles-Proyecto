@@ -4,6 +4,7 @@ import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { UsuarioService } from '../../../core/services/api-services';
 import { Usuario } from '../../../core/models/usuario.model';
 import { HttpClient } from '@angular/common/http';
+import { API_URL } from '../../../core/config/api.config';
 
 @Component({
   selector: 'app-lista-usuarios',
@@ -88,7 +89,7 @@ export class ListaUsuariosComponent implements OnInit {
 
   ngOnInit(): void {
     this.cargar();
-    this.http.get<any[]>('http://localhost:8080/api/roles').subscribe(rs => this.roles.set(rs));
+    this.http.get<any[]>(`${API_URL}/roles`).subscribe(rs => this.roles.set(rs));
   }
   cargar(): void { this.usuarioService.getAll().subscribe(us => this.usuarios.set(us)); }
   openModal(u?: Usuario): void {

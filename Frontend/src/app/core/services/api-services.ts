@@ -9,7 +9,9 @@ import { Compra } from '../models/compra.model';
 import { Inventario } from '../models/compra.model';
 import { Usuario } from '../models/usuario.model';
 
-const BASE = 'http://localhost:8080/api';
+import { API_URL } from '../config/api.config';
+
+const BASE = API_URL;
 
 @Injectable({ providedIn: 'root' })
 export class ClienteService {
