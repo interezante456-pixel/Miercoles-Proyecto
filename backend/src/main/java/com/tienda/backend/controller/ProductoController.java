@@ -32,14 +32,7 @@ public class ProductoController {
     private final CategoriaRepository categoriaRepository;
     private final AlmacenRepository almacenRepository;
 
-    // TODO: SOLO PARA TESTEO (asigna un stock aleatorio de 10 a 50 usando el ID como semilla)
-    private void aplicarStockAleatorioDePrueba(Producto p) {
-        if (p != null) {
-            long seed = p.getId() != null ? p.getId() : 0;
-            int randomStock = 10 + (int)((seed * 31 + 17) % 41);
-            p.setStockActual(randomStock);
-        }
-    }
+  // Funciones de utilidad eliminadas
 
     @GetMapping
     public ResponseEntity<Page<Producto>> listar(
@@ -53,21 +46,18 @@ public class ProductoController {
         } else {
             productos = productoRepository.findByActivoTrue(pageable);
         }
-        productos.getContent().forEach(this::aplicarStockAleatorioDePrueba);
         return ResponseEntity.ok(productos);
     }
 
     @GetMapping("/todos")
     public ResponseEntity<List<Producto>> listarTodos() {
         List<Producto> productos = productoRepository.findByActivoTrue();
-        productos.forEach(this::aplicarStockAleatorioDePrueba);
         return ResponseEntity.ok(productos);
     }
 
     @GetMapping("/buscar")
     public ResponseEntity<List<Producto>> buscar(@RequestParam String q) {
         List<Producto> productos = productoRepository.buscar(q);
-        productos.forEach(this::aplicarStockAleatorioDePrueba);
         return ResponseEntity.ok(productos);
     }
 
@@ -81,7 +71,6 @@ public class ProductoController {
     public ResponseEntity<Producto> findById(@PathVariable Long id) {
         Producto producto = productoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + id));
-        aplicarStockAleatorioDePrueba(producto);
         return ResponseEntity.ok(producto);
     }
 
