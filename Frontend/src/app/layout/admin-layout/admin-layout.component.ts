@@ -95,7 +95,151 @@ interface NavItem {
       </div>
     </div>
   `,
-  styleUrl: './admin-layout.component.css'
+  styles: [`
+    .sidebar {
+      width: var(--sidebar-w);
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      transition: width 0.25s ease, left 0.3s ease;
+      overflow: hidden;
+      flex-shrink: 0;
+      height: 100vh;
+    }
+    .sidebar.collapsed { width: var(--sidebar-collapsed); }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 14px;
+      border-bottom: 1px solid var(--border);
+      min-height: var(--header-h);
+    }
+
+    .logo { display: flex; align-items: center; gap: 10px; overflow: hidden; }
+    .logo-icon { font-size: 1.6rem; flex-shrink: 0; }
+    .logo-text { display: flex; flex-direction: column; }
+    .logo-name { font-weight: 700; font-size: 1rem; color: var(--text-primary); }
+    .logo-version { font-size: 0.7rem; color: var(--text-muted); }
+
+    .collapse-btn {
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      width: 26px; height: 26px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: var(--transition);
+    }
+    .collapse-btn:hover { background: var(--primary); color: white; }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .user-info.collapsed { justify-content: center; }
+
+    .avatar {
+      width: 38px; height: 38px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.85rem; color: white;
+      flex-shrink: 0;
+    }
+    .avatar-sm {
+      width: 30px; height: 30px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.75rem; color: white;
+    }
+
+    .user-details { display: flex; flex-direction: column; overflow: hidden; }
+    .user-name { font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-role { font-size: 0.65rem; }
+
+    .sidebar-nav { flex: 1; padding: 10px 8px; overflow-y: auto; }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 10px;
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: var(--transition);
+      margin-bottom: 2px;
+      cursor: pointer;
+      border: none;
+      background: none;
+      width: 100%;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.875rem;
+      white-space: nowrap;
+    }
+    .nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .nav-item.active { background: rgba(99,102,241,0.15); color: var(--primary); font-weight: 600; }
+    .nav-item.active .nav-icon { filter: none; }
+
+    .nav-icon { font-size: 1.1rem; flex-shrink: 0; width: 24px; text-align: center; }
+    .nav-label { flex: 1; }
+    .nav-badge {
+      background: var(--danger);
+      color: white;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 100px;
+    }
+
+    .sidebar-footer { padding: 10px 8px; border-top: 1px solid var(--border); }
+    .logout-btn { color: var(--danger); }
+    .logout-btn:hover { background: rgba(239,68,68,0.1); }
+
+    /* TOPBAR */
+    .topbar {
+      height: var(--header-h);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      flex-shrink: 0;
+    }
+    .page-section { font-size: 1rem; font-weight: 600; color: var(--text-primary); }
+    .topbar-right { display: flex; align-items: center; gap: 16px; }
+    .time { font-size: 0.8rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .user-badge { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-secondary); }
+
+    .mobile-toggle {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--text-primary);
+      font-size: 1.5rem;
+      cursor: pointer;
+      margin-right: 12px;
+    }
+    .sidebar-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+    }
+  `]
 })
 export class AdminLayoutComponent {
   private authService = inject(AuthService);
