@@ -31,7 +31,7 @@ public class ProductoController {
     private final ProductoRepository productoRepository;
     private final CategoriaRepository categoriaRepository;
     private final AlmacenRepository almacenRepository;
-    private final jakarta.persistence.EntityManager entityManager;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
   // Funciones de utilidad eliminadas
 
@@ -97,9 +97,10 @@ public class ProductoController {
                 .moneda(request.getMoneda())
                 .categoria(categoria)
                 .almacen(almacen)
-                .activo(request.getActivo())
+                .activo(true)
                 .build();
-        return ResponseEntity.ok(productoRepository.save(producto));
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(productoRepository.save(producto));
     }
 
     @PutMapping("/{id}")
@@ -107,21 +108,25 @@ public class ProductoController {
     public ResponseEntity<Producto> actualizar(@PathVariable Long id, @Valid @RequestBody ProductoRequest request) {
         Producto producto = productoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + id));
+
         Categoria categoria = categoriaRepository.findById(request.getCategoriaId())
                 .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada"));
+        Almacen almacen = request.getAlmacenId() != null
+                ? almacenRepository.findById(request.getAlmacenId()).orElse(null) : null;
 
+        producto.setCodigo(request.getCodigo());
         producto.setNombre(request.getNombre());
         producto.setDescripcion(request.getDescripcion());
         producto.setPrecioCompra(request.getPrecioCompra());
         producto.setPrecioVenta(request.getPrecioVenta());
+        producto.setStockActual(request.getStockActual());
         producto.setStockMinimo(request.getStockMinimo());
-        if (request.getStockActual() != null) producto.setStockActual(request.getStockActual());
         producto.setImagenUrl(request.getImagenUrl());
-        producto.setCategoria(categoria);
         producto.setCodigoBarras(request.getCodigoBarras());
         producto.setUnidadMedida(request.getUnidadMedida());
         producto.setMoneda(request.getMoneda());
-        if (request.getActivo() != null) producto.setActivo(request.getActivo());
+        producto.setCategoria(categoria);
+        producto.setAlmacen(almacen);
 
         return ResponseEntity.ok(productoRepository.save(producto));
     }
@@ -141,70 +146,39 @@ public class ProductoController {
     public ResponseEntity<List<Producto>> importar(@RequestBody List<ProductoRequest> requests) {
         List<Producto> importados = new ArrayList<>();
         for (ProductoRequest req : requests) {
-            if (req.getCodigo() == null || req.getCodigo().trim().isEmpty() || req.getNombre() == null || req.getNombre().trim().isEmpty()) {
-                continue; // Skip invalid rows
-            }
-            
-            // 1. Resolve Category
-            Categoria categoria = null;
-            if (req.getCategoriaId() != null) {
-                categoria = categoriaRepository.findById(req.getCategoriaId()).orElse(null);
-            }
-            if (categoria == null && req.getCategoriaNombre() != null && !req.getCategoriaNombre().trim().isEmpty()) {
-                String nombreCat = req.getCategoriaNombre().trim();
-                categoria = categoriaRepository.findByNombre(nombreCat)
-                        .orElseGet(() -> {
-                            Categoria nueva = new Categoria();
-                            nueva.setNombre(nombreCat);
-                            nueva.setActivo(true);
-                            return categoriaRepository.save(nueva);
-                        });
-            }
-            if (categoria == null) {
-                // fall back to default "Abarrotes" category
-                categoria = categoriaRepository.findByNombre("Abarrotes")
-                        .orElseGet(() -> {
-                            Categoria nueva = new Categoria();
-                            nueva.setNombre("Abarrotes");
-                            nueva.setActivo(true);
-                            return categoriaRepository.save(nueva);
-                        });
+            Categoria categoria;
+            if (req.getCategoriaNombre() != null && !req.getCategoriaNombre().trim().isEmpty()) {
+                categoria = categoriaRepository.findByNombreIgnoreCase(req.getCategoriaNombre().trim())
+                        .orElseGet(() -> categoriaRepository.save(
+                                Categoria.builder()
+                                        .nombre(req.getCategoriaNombre().trim())
+                                        .descripcion("Categoría creada por importación")
+                                        .activo(true)
+                                        .build()
+                        ));
+            } else {
+                categoria = categoriaRepository.findByNombreIgnoreCase("Sin Categoría")
+                        .orElseGet(() -> categoriaRepository.save(
+                                Categoria.builder()
+                                        .nombre("Sin Categoría")
+                                        .activo(true)
+                                        .build()
+                        ));
             }
 
-            // 2. Resolve Product (Upsert)
-            Optional<Producto> existenteOpt = productoRepository.findByCodigo(req.getCodigo().trim());
+            Optional<Producto> existente = productoRepository.findByCodigo(req.getCodigo().trim());
             Producto producto;
-            if (existenteOpt.isPresent()) {
-                producto = existenteOpt.get();
-                producto.setNombre(req.getNombre().trim());
+
+            if (existente.isPresent()) {
+                producto = existente.get();
+                if (req.getNombre() != null) producto.setNombre(req.getNombre().trim());
                 if (req.getDescripcion() != null) producto.setDescripcion(req.getDescripcion().trim());
                 producto.setPrecioCompra(req.getPrecioCompra());
                 producto.setPrecioVenta(req.getPrecioVenta());
                 if (req.getStockActual() != null) producto.setStockActual(req.getStockActual());
                 if (req.getStockMinimo() != null) producto.setStockMinimo(req.getStockMinimo());
-                if (req.getImagenUrl() != null) producto.setImagenUrl(req.getImagenUrl().trim());
-                if (req.getCodigoBarras() != null) producto.setCodigoBarras(req.getCodigoBarras().trim());
-                if (req.getUnidadMedida() != null) producto.setUnidadMedida(req.getUnidadMedida().trim());
-                if (req.getMoneda() != null) producto.setMoneda(req.getMoneda().trim());
-                producto.setCategoria(categoria);
-            } else {
-                producto = Producto.builder()
-                        .codigo(req.getCodigo().trim())
-                        .nombre(req.getNombre().trim())
-                        .descripcion(req.getDescripcion() != null ? req.getDescripcion().trim() : null)
-                        .precioCompra(req.getPrecioCompra() != null ? req.getPrecioCompra() : java.math.BigDecimal.ZERO)
-                        .precioVenta(req.getPrecioVenta() != null ? req.getPrecioVenta() : java.math.BigDecimal.ZERO)
-                        .stockActual(req.getStockActual() != null ? req.getStockActual() : 0)
-                        .stockMinimo(req.getStockMinimo() != null ? req.getStockMinimo() : 5)
-                        .imagenUrl(req.getImagenUrl() != null ? req.getImagenUrl().trim() : null)
-                        .codigoBarras(req.getCodigoBarras() != null ? req.getCodigoBarras().trim() : null)
-                        .unidadMedida(req.getUnidadMedida() != null && !req.getUnidadMedida().trim().isEmpty() ? req.getUnidadMedida().trim() : "UNIDADES")
-                        .moneda(req.getMoneda() != null && !req.getMoneda().trim().isEmpty() ? req.getMoneda().trim() : "PEN")
-                        .categoria(categoria)
-                        .activo(true)
-                        .build();
+                importados.add(productoRepository.save(producto));
             }
-            importados.add(productoRepository.save(producto));
         }
         return ResponseEntity.ok(importados);
     }
@@ -215,40 +189,33 @@ public class ProductoController {
     public ResponseEntity<Map<String, String>> hardPurge() {
         // Ejecutar borrado en cascada nativo para todos los productos con activo = false
         // 1. Borrar inventario
-        int invDeleted = entityManager.createNativeQuery("DELETE FROM inventario WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)").executeUpdate();
+        int invDeleted = jdbcTemplate.update("DELETE FROM inventario WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)");
         
         // 2. Obtener IDs de ventas y compras afectadas
-        java.util.List<Number> ventasAfectadas = entityManager.createNativeQuery("SELECT DISTINCT venta_id FROM detalles_venta WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)").getResultList();
-        java.util.List<Number> comprasAfectadas = entityManager.createNativeQuery("SELECT DISTINCT compra_id FROM detalles_compra WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)").getResultList();
+        java.util.List<Long> ventasAfectadas = jdbcTemplate.queryForList("SELECT DISTINCT venta_id FROM detalles_venta WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)", Long.class);
+        java.util.List<Long> comprasAfectadas = jdbcTemplate.queryForList("SELECT DISTINCT compra_id FROM detalles_compra WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)", Long.class);
         
         // 3. Borrar detalles
-        int detVentasDeleted = entityManager.createNativeQuery("DELETE FROM detalles_venta WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)").executeUpdate();
-        int detComprasDeleted = entityManager.createNativeQuery("DELETE FROM detalles_compra WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)").executeUpdate();
+        int detVentasDeleted = jdbcTemplate.update("DELETE FROM detalles_venta WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)");
+        int detComprasDeleted = jdbcTemplate.update("DELETE FROM detalles_compra WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)");
         
         // 4. Borrar ventas y compras vacías (opcional, pero el usuario pidió borrarlas)
         int ventasDeleted = 0;
         if (!ventasAfectadas.isEmpty()) {
-            // Eliminar los detalles restantes de esas ventas por si tenían otros productos
-            entityManager.createNativeQuery("DELETE FROM detalles_venta WHERE venta_id IN :ids")
-              .setParameter("ids", ventasAfectadas)
-              .executeUpdate();
-            ventasDeleted = entityManager.createNativeQuery("DELETE FROM ventas WHERE id IN :ids")
-              .setParameter("ids", ventasAfectadas)
-              .executeUpdate();
+            String inSql = String.join(",", java.util.Collections.nCopies(ventasAfectadas.size(), "?"));
+            jdbcTemplate.update("DELETE FROM detalles_venta WHERE venta_id IN (" + inSql + ")", ventasAfectadas.toArray());
+            ventasDeleted = jdbcTemplate.update("DELETE FROM ventas WHERE id IN (" + inSql + ")", ventasAfectadas.toArray());
         }
         
         int comprasDeleted = 0;
         if (!comprasAfectadas.isEmpty()) {
-            entityManager.createNativeQuery("DELETE FROM detalles_compra WHERE compra_id IN :ids")
-              .setParameter("ids", comprasAfectadas)
-              .executeUpdate();
-            comprasDeleted = entityManager.createNativeQuery("DELETE FROM compras WHERE id IN :ids")
-              .setParameter("ids", comprasAfectadas)
-              .executeUpdate();
+            String inSql = String.join(",", java.util.Collections.nCopies(comprasAfectadas.size(), "?"));
+            jdbcTemplate.update("DELETE FROM detalles_compra WHERE compra_id IN (" + inSql + ")", comprasAfectadas.toArray());
+            comprasDeleted = jdbcTemplate.update("DELETE FROM compras WHERE id IN (" + inSql + ")", comprasAfectadas.toArray());
         }
 
         // 5. Borrar productos
-        int prodsDeleted = entityManager.createNativeQuery("DELETE FROM productos WHERE activo = 0").executeUpdate();
+        int prodsDeleted = jdbcTemplate.update("DELETE FROM productos WHERE activo = 0");
 
         Map<String, String> response = new java.util.HashMap<>();
         response.put("mensaje", "Purga completada.");
