@@ -27,7 +27,7 @@ public class DashboardService {
         BigDecimal totalHoy = ventaRepository.totalVentasHoy();
         stats.put("ventasHoy", totalHoy != null ? totalHoy : BigDecimal.ZERO);
         stats.put("totalVentas", ventaRepository.count());
-        stats.put("totalProductos", productoRepository.count());
+        stats.put("totalProductos", productoRepository.countByActivoTrue());
         stats.put("totalClientes", clienteRepository.count());
         stats.put("comprasPendientes", compraRepository.findComprasPendientes().size());
 

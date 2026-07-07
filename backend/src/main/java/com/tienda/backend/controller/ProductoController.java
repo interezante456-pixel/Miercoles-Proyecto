@@ -207,4 +207,54 @@ public class ProductoController {
         }
         return ResponseEntity.ok(importados);
     }
+
+    @DeleteMapping("/hard-purge")
+    @PreAuthorize("hasRole('ADMIN')")
+    @org.springframework.transaction.annotation.Transactional
+    public ResponseEntity<Map<String, String>> hardPurge(jakarta.persistence.EntityManager em) {
+        // Ejecutar borrado en cascada nativo para todos los productos con activo = false
+        // 1. Borrar inventario
+        int invDeleted = em.createNativeQuery("DELETE FROM inventario WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)").executeUpdate();
+        
+        // 2. Obtener IDs de ventas y compras afectadas
+        java.util.List<Number> ventasAfectadas = em.createNativeQuery("SELECT DISTINCT venta_id FROM detalles_venta WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)").getResultList();
+        java.util.List<Number> comprasAfectadas = em.createNativeQuery("SELECT DISTINCT compra_id FROM detalles_compra WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)").getResultList();
+        
+        // 3. Borrar detalles
+        int detVentasDeleted = em.createNativeQuery("DELETE FROM detalles_venta WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)").executeUpdate();
+        int detComprasDeleted = em.createNativeQuery("DELETE FROM detalles_compra WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)").executeUpdate();
+        
+        // 4. Borrar ventas y compras vacías (opcional, pero el usuario pidió borrarlas)
+        int ventasDeleted = 0;
+        if (!ventasAfectadas.isEmpty()) {
+            // Eliminar los detalles restantes de esas ventas por si tenían otros productos
+            em.createNativeQuery("DELETE FROM detalles_venta WHERE venta_id IN :ids")
+              .setParameter("ids", ventasAfectadas)
+              .executeUpdate();
+            ventasDeleted = em.createNativeQuery("DELETE FROM ventas WHERE id IN :ids")
+              .setParameter("ids", ventasAfectadas)
+              .executeUpdate();
+        }
+        
+        int comprasDeleted = 0;
+        if (!comprasAfectadas.isEmpty()) {
+            em.createNativeQuery("DELETE FROM detalles_compra WHERE compra_id IN :ids")
+              .setParameter("ids", comprasAfectadas)
+              .executeUpdate();
+            comprasDeleted = em.createNativeQuery("DELETE FROM compras WHERE id IN :ids")
+              .setParameter("ids", comprasAfectadas)
+              .executeUpdate();
+        }
+
+        // 5. Borrar productos
+        int prodsDeleted = em.createNativeQuery("DELETE FROM productos WHERE activo = 0").executeUpdate();
+
+        Map<String, String> response = new java.util.HashMap<>();
+        response.put("mensaje", "Purga completada.");
+        response.put("productosBorrados", String.valueOf(prodsDeleted));
+        response.put("ventasBorradas", String.valueOf(ventasDeleted));
+        response.put("comprasBorradas", String.valueOf(comprasDeleted));
+        
+        return ResponseEntity.ok(response);
+    }
 }
