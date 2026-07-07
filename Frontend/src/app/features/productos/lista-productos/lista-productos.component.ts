@@ -176,7 +176,11 @@ import * as XLSX from 'xlsx';
                 </select>
               </div>
               <div class="form-group">
-                <label class="form-label">Stock Mínimo</label>
+                <label class="form-label">Stock Actual *</label>
+                <input formControlName="stockActual" type="number" class="form-control" placeholder="0">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Stock Mínimo *</label>
                 <input formControlName="stockMinimo" type="number" class="form-control" placeholder="5">
               </div>
               <div class="form-group">
@@ -274,7 +278,8 @@ export class ListaProductosComponent implements OnInit {
     descripcion:  [''],
     precioCompra: [0, [Validators.required, Validators.min(0)]],
     precioVenta:  [0, [Validators.required, Validators.min(0)]],
-    stockMinimo:  [5],
+    stockActual:  [0, [Validators.required, Validators.min(0)]],
+    stockMinimo:  [5, [Validators.required, Validators.min(0)]],
     categoriaId:  ['', Validators.required],
     codigoBarras: [''],
     unidadMedida: ['UNIDADES'],

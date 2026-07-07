@@ -88,6 +88,7 @@ public class ProductoController {
         producto.setPrecioCompra(request.getPrecioCompra());
         producto.setPrecioVenta(request.getPrecioVenta());
         producto.setStockMinimo(request.getStockMinimo());
+        if (request.getStockActual() != null) producto.setStockActual(request.getStockActual());
         producto.setImagenUrl(request.getImagenUrl());
         producto.setCategoria(categoria);
         producto.setCodigoBarras(request.getCodigoBarras());
