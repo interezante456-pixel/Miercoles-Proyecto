@@ -10,12 +10,17 @@ import com.tienda.backend.repository.CategoriaRepository;
 import com.tienda.backend.repository.ProductoRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -37,9 +42,18 @@ public class ProductoController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Producto>> listar() {
-        List<Producto> productos = productoRepository.findByActivoTrue();
-        productos.forEach(this::aplicarStockAleatorioDePrueba);
+    public ResponseEntity<Page<Producto>> listar(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size,
+            @RequestParam(required = false) String q) {
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100), Sort.by("nombre").ascending());
+        Page<Producto> productos;
+        if (q != null && !q.isBlank()) {
+            productos = productoRepository.buscarPaginado(q.trim(), pageable);
+        } else {
+            productos = productoRepository.findByActivoTrue(pageable);
+        }
+        productos.getContent().forEach(this::aplicarStockAleatorioDePrueba);
         return ResponseEntity.ok(productos);
     }
 
@@ -51,10 +65,9 @@ public class ProductoController {
     }
 
     @GetMapping("/stock-bajo")
-    public ResponseEntity<List<Producto>> stockBajo() {
-        List<Producto> productos = productoRepository.findProductosStockBajo();
-        productos.forEach(this::aplicarStockAleatorioDePrueba);
-        return ResponseEntity.ok(productos);
+    public ResponseEntity<Map<String, Long>> stockBajo() {
+        long count = productoRepository.countProductosStockBajo();
+        return ResponseEntity.ok(Map.of("count", count));
     }
 
     @GetMapping("/{id}")

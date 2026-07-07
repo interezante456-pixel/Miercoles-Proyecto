@@ -1,10 +1,12 @@
-import { Component, inject, OnInit, signal, computed } from '@angular/core';
+import { Component, inject, OnInit, signal, computed, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { ProductoService } from '../../../core/services/producto.service';
 import { CategoriaService } from '../../../core/services/api-services';
 import { Producto } from '../../../core/models/producto.model';
 import { AuthService } from '../../../core/services/auth.service';
+import { Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import * as XLSX from 'xlsx';
 
 @Component({
@@ -16,7 +18,7 @@ import * as XLSX from 'xlsx';
       <div class="page-header">
         <div>
           <h1 class="page-title">📦 Productos</h1>
-          <p class="page-subtitle">{{ productos().length }} productos registrados</p>
+          <p class="page-subtitle">{{ totalProductos() }} productos registrados</p>
         </div>
         @if (esAdminOAlmacenero()) {
           <div class="d-flex gap-8">
@@ -33,13 +35,22 @@ import * as XLSX from 'xlsx';
           <div class="search-bar">
             <span class="search-icon">🔍</span>
             <input type="text" placeholder="Buscar por nombre o código..."
-                   (input)="filtrar($event)" />
+                   [value]="searchQuery()"
+                   (input)="onSearchInput($event)" />
           </div>
-          <span class="badge badge-warning">⚠️ {{ stockBajo().length }} con stock bajo</span>
+          <span class="badge badge-warning">⚠️ {{ stockBajoCount() }} con stock bajo</span>
         </div>
       </div>
 
+      <!-- Loading indicator -->
+      @if (loading()) {
+        <div class="card" style="padding: 32px; text-align: center;">
+          <span class="text-muted">⏳ Cargando productos...</span>
+        </div>
+      }
+
       <!-- Table -->
+      @if (!loading()) {
       <div class="card">
         <div class="table-wrapper">
           <table class="table">
@@ -58,7 +69,7 @@ import * as XLSX from 'xlsx';
               </tr>
             </thead>
             <tbody>
-               @for (p of productosPaginados(); track p.id) {
+               @for (p of productos(); track p.id) {
                  <tr>
                    <td>
                      <code class="text-primary-color">{{ p.codigo }}</code>
@@ -96,10 +107,10 @@ import * as XLSX from 'xlsx';
            </table>
          </div>
          
-         <!-- Paginación Premium -->
+         <!-- Paginación del Servidor -->
          <div class="pagination-container d-flex justify-between align-center" style="margin-top: 16px; padding: 12px 16px; border-top: 1px solid var(--border); flex-wrap: wrap; gap: 12px;">
            <div class="pagination-info text-muted" style="font-size: 0.875rem;">
-             Mostrando <strong>{{ getInicio() }}</strong> a <strong>{{ getFin() }}</strong> de <strong>{{ filtrados().length }}</strong> productos
+             Mostrando <strong>{{ getInicio() }}</strong> a <strong>{{ getFin() }}</strong> de <strong>{{ totalProductos() }}</strong> productos
            </div>
            
            <div class="d-flex align-center gap-16" style="flex-wrap: wrap;">
@@ -109,31 +120,30 @@ import * as XLSX from 'xlsx';
                  <option [value]="25">25</option>
                  <option [value]="50">50</option>
                  <option [value]="100">100</option>
-                 <option [value]="250">250</option>
-                 <option [value]="500">500</option>
                </select>
              </div>
              
              <div class="pagination-buttons d-flex gap-4">
-               <button type="button" class="btn btn-sm btn-outline" [disabled]="currentPage() === 1" (click)="goToPage(1)">«</button>
-               <button type="button" class="btn btn-sm btn-outline" [disabled]="currentPage() === 1" (click)="goToPage(currentPage() - 1)">‹</button>
+               <button type="button" class="btn btn-sm btn-outline" [disabled]="currentPage() === 0" (click)="goToPage(0)">«</button>
+               <button type="button" class="btn btn-sm btn-outline" [disabled]="currentPage() === 0" (click)="goToPage(currentPage() - 1)">‹</button>
                
-               @for (p of getVisiblePages(); track p) {
+               @for (p of getVisiblePages(); track $index) {
                  @if (p === -1) {
                    <span class="text-muted" style="padding: 0 8px; align-self: center;">...</span>
                  } @else {
                    <button type="button" class="btn btn-sm" [class.btn-primary]="currentPage() === p" [class.btn-outline]="currentPage() !== p" (click)="goToPage(p)">
-                     {{ p }}
+                     {{ p + 1 }}
                    </button>
                  }
                }
                
-               <button type="button" class="btn btn-sm btn-outline" [disabled]="currentPage() === totalPages()" (click)="goToPage(currentPage() + 1)">›</button>
-               <button type="button" class="btn btn-sm btn-outline" [disabled]="currentPage() === totalPages()" (click)="goToPage(totalPages())">»</button>
+               <button type="button" class="btn btn-sm btn-outline" [disabled]="currentPage() >= totalPages() - 1" (click)="goToPage(currentPage() + 1)">›</button>
+               <button type="button" class="btn btn-sm btn-outline" [disabled]="currentPage() >= totalPages() - 1" (click)="goToPage(totalPages() - 1)">»</button>
              </div>
            </div>
          </div>
       </div>
+      }
     </div>
 
     <!-- MODAL -->
@@ -207,7 +217,7 @@ import * as XLSX from 'xlsx';
   `,
   styles: [`.mb-16 { margin-bottom: 16px; } code { font-size: 0.8rem; } textarea { resize: vertical; }`]
 })
-export class ListaProductosComponent implements OnInit {
+export class ListaProductosComponent implements OnInit, OnDestroy {
   private productoService = inject(ProductoService);
   private categoriaService = inject(CategoriaService);
   private authService = inject(AuthService);
@@ -222,55 +232,53 @@ export class ListaProductosComponent implements OnInit {
     return rol === 'ADMIN' || rol === 'ALMACENERO';
   }
 
+  // Datos de la página actual (solo 25-100 productos, no 10K+)
   productos = signal<Producto[]>([]);
-  filtrados = signal<Producto[]>([]);
+  totalProductos = signal(0);
+  totalPages = signal(1);
   categorias = signal<any[]>([]);
-  stockBajo = signal<Producto[]>([]);
+  stockBajoCount = signal(0);
   showModal = signal(false);
   editando = signal<Producto | null>(null);
+  loading = signal(false);
 
-  // Pagination state
-  currentPage = signal(1);
+  // Paginación del servidor (0-indexed)
+  currentPage = signal(0);
   pageSize = signal(25);
+  searchQuery = signal('');
 
-  totalPages = computed(() => Math.ceil(this.filtrados().length / this.pageSize()) || 1);
+  // Debounce para búsqueda
+  private searchSubject = new Subject<string>();
+  private searchSub: any;
 
-  getInicio = computed(() => this.filtrados().length === 0 ? 0 : (this.currentPage() - 1) * this.pageSize() + 1);
+  getInicio(): number {
+    return this.totalProductos() === 0 ? 0 : this.currentPage() * this.pageSize() + 1;
+  }
 
-  getFin = computed(() => Math.min(this.currentPage() * this.pageSize(), this.filtrados().length));
+  getFin(): number {
+    return Math.min((this.currentPage() + 1) * this.pageSize(), this.totalProductos());
+  }
 
-  productosPaginados = computed(() => {
-    const start = (this.currentPage() - 1) * this.pageSize();
-    const end = start + this.pageSize();
-    return this.filtrados().slice(start, end);
-  });
-
-  getVisiblePages = computed(() => {
+  getVisiblePages(): number[] {
     const total = this.totalPages();
     const current = this.currentPage();
     const pages: number[] = [];
     
     if (total <= 7) {
-      for (let i = 1; i <= total; i++) pages.push(i);
+      for (let i = 0; i < total; i++) pages.push(i);
     } else {
-      pages.push(1);
-      if (current > 3) {
-        pages.push(-1); // Represents '...'
-      }
+      pages.push(0);
+      if (current > 2) pages.push(-1);
       
-      const start = Math.max(2, current - 1);
-      const end = Math.min(total - 1, current + 1);
-      for (let i = start; i <= end; i++) {
-        pages.push(i);
-      }
+      const start = Math.max(1, current - 1);
+      const end = Math.min(total - 2, current + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
       
-      if (current < total - 2) {
-        pages.push(-1); // Represents '...'
-      }
-      pages.push(total);
+      if (current < total - 3) pages.push(-1);
+      pages.push(total - 1);
     }
     return pages;
-  });
+  }
 
   form = this.fb.group({
     codigo:       ['', Validators.required],
@@ -289,38 +297,54 @@ export class ListaProductosComponent implements OnInit {
   ngOnInit(): void {
     this.cargarDatos();
     this.categoriaService.getAll().subscribe(cats => this.categorias.set(cats));
+    this.productoService.getStockBajoCount().subscribe(res => this.stockBajoCount.set(res.count));
+
+    // Configurar búsqueda con debounce de 400ms
+    this.searchSub = this.searchSubject.pipe(
+      debounceTime(400),
+      distinctUntilChanged()
+    ).subscribe(q => {
+      this.searchQuery.set(q);
+      this.currentPage.set(0);
+      this.cargarDatos();
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.searchSub) this.searchSub.unsubscribe();
   }
 
   cargarDatos(): void {
-    this.productoService.getAll().subscribe(ps => {
-      this.productos.set(ps);
-      this.filtrados.set(ps);
-      if (this.currentPage() > this.totalPages()) {
-        this.currentPage.set(this.totalPages());
+    this.loading.set(true);
+    this.productoService.getAll(this.currentPage(), this.pageSize(), this.searchQuery() || undefined).subscribe({
+      next: (page) => {
+        this.productos.set(page.content);
+        this.totalProductos.set(page.totalElements);
+        this.totalPages.set(page.totalPages);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
       }
     });
-    this.productoService.getStockBajo().subscribe(ps => this.stockBajo.set(ps));
   }
 
-  filtrar(event: Event): void {
-    const q = (event.target as HTMLInputElement).value.toLowerCase();
-    this.filtrados.set(q ? this.productos().filter(p =>
-      p.nombre.toLowerCase().includes(q) || 
-      p.codigo.toLowerCase().includes(q) ||
-      p.codigoBarras?.toLowerCase().includes(q)
-    ) : this.productos());
-    this.currentPage.set(1);
+  onSearchInput(event: Event): void {
+    const q = (event.target as HTMLInputElement).value;
+    this.searchSubject.next(q);
   }
 
   goToPage(page: number): void {
-    if (page >= 1 && page <= this.totalPages()) {
+    if (page >= 0 && page < this.totalPages()) {
       this.currentPage.set(page);
+      this.cargarDatos();
     }
   }
 
   onPageSizeChange(size: any): void {
     this.pageSize.set(Number(size));
-    this.currentPage.set(1);
+    this.currentPage.set(0);
+    this.cargarDatos();
   }
 
   openModal(p?: Producto): void {
