@@ -6,6 +6,8 @@ import { ProductoService } from '../../../core/services/producto.service';
 import { Producto } from '../../../core/models/producto.model';
 import { Proveedor } from '../../../core/models/cliente.model';
 import { Router } from '@angular/router';
+import { Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
 interface ItemCompra {
   producto: Producto;
@@ -100,14 +102,15 @@ interface ItemCompra {
   `,
   styles: [`.venta-layout { display: grid; grid-template-columns: 1fr 380px; gap: 16px; } .mb-16 { margin-bottom: 16px; } .productos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 280px; overflow-y: auto; } .producto-card { padding: 12px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: var(--transition); } .producto-card:hover { border-color: var(--primary); } .producto-nombre { font-weight: 500; font-size: 0.85rem; margin-bottom: 6px; } .producto-info { display: flex; justify-content: space-between; font-size: 0.8rem; } .carrito { position: sticky; top: 24px; } .empty-carrito { text-align: center; padding: 40px; color: var(--text-muted); } .empty-carrito span { font-size: 3rem; display: block; margin-bottom: 8px; } .carrito-items { max-height: 350px; overflow-y: auto; margin: 16px 0; } .carrito-item { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border); } .item-nombre { flex: 1; font-size: 0.85rem; font-weight: 500; } .item-controls { display: flex; align-items: center; gap: 4px; } .item-qty { min-width: 24px; text-align: center; font-weight: 600; } .item-precio { font-weight: 600; color: var(--primary); min-width: 80px; text-align: right; } .totales { border-top: 1px solid var(--border); padding-top: 12px; margin-bottom: 16px; } .total-row { display: flex; justify-content: space-between; padding: 4px 0; color: var(--text-secondary); } .total-final { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px; } textarea { resize: vertical; }`]
 })
-export class NuevaCompraComponent implements OnInit {
+export class NuevaCompraComponent implements OnInit, OnDestroy {
   private compraService = inject(CompraService);
   private proveedorService = inject(ProveedorService);
   private productoService = inject(ProductoService);
   router = inject(Router);
 
   proveedores = signal<Proveedor[]>([]);
-  productos = signal<Producto[]>([]);
+  // We no longer keep a massive list of all products in memory
+  // productos = signal<Producto[]>([]);
   productosFiltrados = signal<Producto[]>([]);
   items = signal<ItemCompra[]>([]);
   proveedorId = '';
@@ -116,38 +119,47 @@ export class NuevaCompraComponent implements OnInit {
   loading = signal(false);
   error = signal('');
 
+  private searchSubject = new Subject<string>();
+  private searchSub: any;
+
   ngOnInit(): void {
     this.proveedorService.getAll().subscribe(ps => this.proveedores.set(ps));
-    this.productoService.getAll().subscribe(ps => this.productos.set(ps));
+    // No longer loading all products on init to improve performance
+    // this.productoService.getAllList().subscribe(ps => this.productos.set(ps));
+
+    this.searchSub = this.searchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged()
+    ).subscribe(q => {
+      if (q.length > 1) {
+        this.productoService.buscar(q).subscribe(ps => {
+          const exacto = ps.find(p => p.codigoBarras && p.codigoBarras.trim().toLowerCase() === q);
+          if (exacto) {
+            this.error.set('');
+            this.agregar(exacto);
+            const inputElement = document.querySelector('input[placeholder="Buscar por código, nombre o barras..."]') as HTMLInputElement;
+            if (inputElement) inputElement.value = '';
+            this.productosFiltrados.set([]);
+          } else {
+            this.productosFiltrados.set(ps.slice(0, 8));
+          }
+        });
+      } else {
+        this.productosFiltrados.set([]);
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.searchSub) this.searchSub.unsubscribe();
   }
 
   buscarProducto(e: Event): void {
     const inputElement = e.target as HTMLInputElement;
     const q = inputElement.value.trim().toLowerCase();
     
-    if (q.length > 1) {
-      // 1. Buscar coincidencia exacta por código de barras (escaneo rápido)
-      const exacto = this.productos().find(p => 
-        p.codigoBarras && p.codigoBarras.trim().toLowerCase() === q
-      );
-
-      if (exacto) {
-        this.error.set(''); // Limpiar errores previos
-        this.agregar(exacto);
-        inputElement.value = '';
-        this.productosFiltrados.set([]);
-        return;
-      }
-
-      // 2. Búsqueda normal por nombre, código interno o código de barras parcial
-      this.productosFiltrados.set(this.productos().filter(p => 
-        p.nombre.toLowerCase().includes(q) || 
-        p.codigo.toLowerCase().includes(q) ||
-        (p.codigoBarras && p.codigoBarras.toLowerCase().includes(q))
-      ).slice(0, 6));
-    } else {
-      this.productosFiltrados.set([]);
-    }
+    // We emit to the Subject instead of filtering in-memory
+    this.searchSubject.next(q);
   }
 
   agregar(p: Producto): void {

@@ -7,6 +7,8 @@ import { FormsModule } from '@angular/forms';
 import { Producto } from '../../../core/models/producto.model';
 import { Cliente } from '../../../core/models/cliente.model';
 import { Router } from '@angular/router';
+import { Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
 interface ItemCarrito {
   producto: Producto;
@@ -644,14 +646,15 @@ interface ItemCarrito {
     }
   `]
 })
-export class NuevaVentaComponent implements OnInit, AfterViewInit {
+export class NuevaVentaComponent implements OnInit, AfterViewInit, OnDestroy {
   private ventaService = inject(VentaService);
   private clienteService = inject(ClienteService);
   private productoService = inject(ProductoService);
   router = inject(Router);
 
   clientes = signal<Cliente[]>([]);
-  productos = signal<Producto[]>([]);
+  // We no longer keep a massive list of all products in memory
+  // productos = signal<Producto[]>([]);
   clientesFiltrados = signal<Cliente[]>([]);
   productosFiltrados = signal<Producto[]>([]);
   clienteSeleccionado = signal<Cliente | null>(null);
@@ -674,9 +677,46 @@ export class NuevaVentaComponent implements OnInit, AfterViewInit {
   @ViewChild('buscarInput') buscarInput!: ElementRef<HTMLInputElement>;
   @ViewChild('clienteInput') clienteInput!: ElementRef<HTMLInputElement>;
 
+  private searchSubject = new Subject<string>();
+  private searchSub: any;
+
   ngOnInit(): void {
     this.clienteService.getAll().subscribe(cs => this.clientes.set(cs));
-    this.productoService.getAll().subscribe(ps => this.productos.set(ps));
+    // No longer loading all products on init to improve performance
+    // this.productoService.getAllList().subscribe(ps => this.productos.set(ps));
+
+    this.searchSub = this.searchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged()
+    ).subscribe(q => {
+      if (q.length > 1) {
+        this.productoService.buscar(q).subscribe(ps => {
+          // If there's an exact barcode match and we just scanned it, auto-add it? 
+          // We handle that in buscarProducto for immediate barcodes if possible, but backend handles general search.
+          const exacto = ps.find(p => p.codigoBarras && p.codigoBarras.trim().toLowerCase() === q);
+          if (exacto) {
+             if (exacto.stockActual === 0) {
+               this.error.set(`El producto "${exacto.nombre}" no tiene stock.`);
+               this.buscarInput.nativeElement.value = '';
+               this.productosFiltrados.set([]);
+             } else {
+               this.error.set('');
+               this.agregarAlCarrito(exacto);
+               this.buscarInput.nativeElement.value = '';
+               this.productosFiltrados.set([]);
+             }
+          } else {
+            this.productosFiltrados.set(ps.slice(0, 8));
+          }
+        });
+      } else {
+        this.productosFiltrados.set([]);
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.searchSub) this.searchSub.unsubscribe();
   }
 
   ngAfterViewInit(): void {
@@ -754,35 +794,8 @@ export class NuevaVentaComponent implements OnInit, AfterViewInit {
     const inputElement = event.target as HTMLInputElement;
     const q = inputElement.value.trim().toLowerCase();
     
-    if (q.length > 1) {
-      // 1. Buscar coincidencia exacta por código de barras (escaneo rápido)
-      const exacto = this.productos().find(p => 
-        p.codigoBarras && p.codigoBarras.trim().toLowerCase() === q
-      );
-
-      if (exacto) {
-        if (exacto.stockActual === 0) {
-          this.error.set(`El producto "${exacto.nombre}" no tiene stock.`);
-          inputElement.value = '';
-          this.productosFiltrados.set([]);
-          return;
-        }
-        this.error.set(''); // Limpiar errores previos
-        this.agregarAlCarrito(exacto);
-        inputElement.value = '';
-        this.productosFiltrados.set([]);
-        return;
-      }
-
-      // 2. Búsqueda normal por nombre, código interno o código de barras parcial
-      this.productosFiltrados.set(this.productos().filter(p =>
-        p.nombre.toLowerCase().includes(q) || 
-        p.codigo.toLowerCase().includes(q) ||
-        (p.codigoBarras && p.codigoBarras.toLowerCase().includes(q))
-      ).slice(0, 6));
-    } else {
-      this.productosFiltrados.set([]);
-    }
+    // We emit to the Subject instead of filtering in-memory
+    this.searchSubject.next(q);
   }
 
   agregarAlCarrito(p: Producto): void {

@@ -57,6 +57,13 @@ public class ProductoController {
         return ResponseEntity.ok(productos);
     }
 
+    @GetMapping("/todos")
+    public ResponseEntity<List<Producto>> listarTodos() {
+        List<Producto> productos = productoRepository.findByActivoTrue();
+        productos.forEach(this::aplicarStockAleatorioDePrueba);
+        return ResponseEntity.ok(productos);
+    }
+
     @GetMapping("/buscar")
     public ResponseEntity<List<Producto>> buscar(@RequestParam String q) {
         List<Producto> productos = productoRepository.buscar(q);

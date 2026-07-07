@@ -31,6 +31,11 @@ export class ProductoService {
     return this.http.get<PageResponse<Producto>>(this.API, { params });
   }
 
+  /** Listado completo sin paginación (para POS/ventas) */
+  getAllList(): Observable<Producto[]> {
+    return this.http.get<Producto[]>(`${this.API}/todos`);
+  }
+
   getById(id: number): Observable<Producto>       { return this.http.get<Producto>(`${this.API}/${id}`); }
   buscar(q: string): Observable<Producto[]>        { return this.http.get<Producto[]>(`${this.API}/buscar?q=${q}`); }
   getStockBajoCount(): Observable<{ count: number }> { return this.http.get<{ count: number }>(`${this.API}/stock-bajo`); }
