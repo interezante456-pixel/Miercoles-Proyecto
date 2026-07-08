@@ -12,6 +12,157 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
+
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.Optional;
+
+@RestController
+@RequestMapping("/productos")
+@RequiredArgsConstructor
+public class ProductoController {
+
+    private final ProductoRepository productoRepository;
+    private final CategoriaRepository categoriaRepository;
+    private final AlmacenRepository almacenRepository;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @GetMapping
+    public ResponseEntity<Page<Producto>> listar(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size,
+            @RequestParam(required = false) String q) {
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100), Sort.by("nombre").ascending());
+        Page<Producto> productos;
+        if (q != null && !q.isBlank()) {
+            productos = productoRepository.buscarPaginado(q.trim(), pageable);
+        } else {
+            productos = productoRepository.findByActivoTrue(pageable);
+        }
+        return ResponseEntity.ok(productos);
+    }
+
+    @GetMapping("/todos")
+    public ResponseEntity<List<Producto>> listarTodos() {
+        List<Producto> productos = productoRepository.findByActivoTrue();
+        return ResponseEntity.ok(productos);
+    }
+
+    @GetMapping("/buscar")
+    public ResponseEntity<List<Producto>> buscar(@RequestParam String q) {
+        List<Producto> productos = productoRepository.buscar(q);
+        return ResponseEntity.ok(productos);
+    }
+
+    @GetMapping("/stock-bajo")
+    public ResponseEntity<Map<String, Long>> stockBajo() {
+        long count = productoRepository.countProductosStockBajo();
+        return ResponseEntity.ok(Map.of("count", count));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Producto> findById(@PathVariable Long id) {
+        Producto producto = productoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + id));
+        return ResponseEntity.ok(producto);
+    }
+
+    @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'ALMACENERO')")
+    public ResponseEntity<Producto> crear(@Valid @RequestBody ProductoRequest request) {
+        Categoria categoria = categoriaRepository.findById(request.getCategoriaId())
+                .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada"));
+        Almacen almacen = request.getAlmacenId() != null
+                ? almacenRepository.findById(request.getAlmacenId()).orElse(null) : null;
+
+        Producto producto = Producto.builder()
+                .codigo(request.getCodigo())
+                .nombre(request.getNombre())
+                .descripcion(request.getDescripcion())
+                .precioCompra(request.getPrecioCompra())
+                .precioVenta(request.getPrecioVenta())
+                .stockActual(request.getStockActual())
+                .stockMinimo(request.getStockMinimo())
+                .imagenUrl(request.getImagenUrl())
+                .codigoBarras(request.getCodigoBarras())
+                .unidadMedida(request.getUnidadMedida())
+                .moneda(request.getMoneda())
+                .categoria(categoria)
+                .almacen(almacen)
+                .activo(true)
+                .build();
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(productoRepository.save(producto));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ALMACENERO')")
+    public ResponseEntity<Producto> actualizar(@PathVariable Long id, @Valid @RequestBody ProductoRequest request) {
+        Producto producto = productoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + id));
+
+        Categoria categoria = categoriaRepository.findById(request.getCategoriaId())
+                .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada"));
+        Almacen almacen = request.getAlmacenId() != null
+                ? almacenRepository.findById(request.getAlmacenId()).orElse(null) : null;
+
+        producto.setCodigo(request.getCodigo());
+        producto.setNombre(request.getNombre());
+        producto.setDescripcion(request.getDescripcion());
+        producto.setPrecioCompra(request.getPrecioCompra());
+        producto.setPrecioVenta(request.getPrecioVenta());
+        producto.setStockActual(request.getStockActual());
+        producto.setStockMinimo(request.getStockMinimo());
+        producto.setImagenUrl(request.getImagenUrl());
+        producto.setCodigoBarras(request.getCodigoBarras());
+        producto.setUnidadMedida(request.getUnidadMedida());
+        producto.setMoneda(request.getMoneda());
+        producto.setCategoria(categoria);
+        producto.setAlmacen(almacen);
+
+        return ResponseEntity.ok(productoRepository.save(producto));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+        Producto producto = productoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + id));
+        producto.setActivo(false);
+        productoRepository.save(producto);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/importar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ALMACENERO')")
+    public ResponseEntity<List<Producto>> importar(@RequestBody List<ProductoRequest> requests) {
+        List<Producto> importados = new ArrayList<>();
+        for (ProductoRequest req : requests) {
+            Categoria categoria;
+            if (req.getCategoriaNombre() != null && !req.getCategoriaNombre().trim().isEmpty()) {
+                categoria = categoriaRepository.findByNombre(req.getCategoriaNombre().trim())
+                        .orElseGet(() -> categoriaRepository.save(
+                                Categoria.builder()
+                                        .nombre(req.getCategoriaNombre().trim())
+                                        .descripcion("Categoría creada por importación")
+                                        .activo(true)
+                                        .build()
+                        ));
+            } else {
+                categoria = categoriaRepository.findByNombre("Sin Categoría")
+                        .orElseGet(() -> categoriaRepository.save(
+                                Categoria.builder()
+                                        .nombre("Sin Categoría")
+                                        .activo(true)
+                                        .build()
+                        ));
             }
 
             Optional<Producto> existente = productoRepository.findByCodigo(req.getCodigo().trim());
@@ -25,8 +176,29 @@ import org.springframework.data.domain.PageRequest;
                 producto.setPrecioVenta(req.getPrecioVenta());
                 if (req.getStockActual() != null) producto.setStockActual(req.getStockActual());
                 if (req.getStockMinimo() != null) producto.setStockMinimo(req.getStockMinimo());
-                importados.add(productoRepository.save(producto));
+                if (req.getImagenUrl() != null) producto.setImagenUrl(req.getImagenUrl().trim());
+                if (req.getCodigoBarras() != null) producto.setCodigoBarras(req.getCodigoBarras().trim());
+                if (req.getUnidadMedida() != null) producto.setUnidadMedida(req.getUnidadMedida().trim());
+                if (req.getMoneda() != null) producto.setMoneda(req.getMoneda().trim());
+                producto.setCategoria(categoria);
+            } else {
+                producto = Producto.builder()
+                        .codigo(req.getCodigo().trim())
+                        .nombre(req.getNombre().trim())
+                        .descripcion(req.getDescripcion() != null ? req.getDescripcion().trim() : null)
+                        .precioCompra(req.getPrecioCompra() != null ? req.getPrecioCompra() : java.math.BigDecimal.ZERO)
+                        .precioVenta(req.getPrecioVenta() != null ? req.getPrecioVenta() : java.math.BigDecimal.ZERO)
+                        .stockActual(req.getStockActual() != null ? req.getStockActual() : 0)
+                        .stockMinimo(req.getStockMinimo() != null ? req.getStockMinimo() : 5)
+                        .imagenUrl(req.getImagenUrl() != null ? req.getImagenUrl().trim() : null)
+                        .codigoBarras(req.getCodigoBarras() != null ? req.getCodigoBarras().trim() : null)
+                        .unidadMedida(req.getUnidadMedida() != null && !req.getUnidadMedida().trim().isEmpty() ? req.getUnidadMedida().trim() : "UNIDADES")
+                        .moneda(req.getMoneda() != null && !req.getMoneda().trim().isEmpty() ? req.getMoneda().trim() : "PEN")
+                        .categoria(categoria)
+                        .activo(true)
+                        .build();
             }
+            importados.add(productoRepository.save(producto));
         }
         return ResponseEntity.ok(importados);
     }
