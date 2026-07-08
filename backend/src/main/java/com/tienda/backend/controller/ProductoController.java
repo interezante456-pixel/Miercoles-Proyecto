@@ -212,25 +212,25 @@ public class ProductoController {
         int invDeleted = jdbcTemplate.update("DELETE FROM inventario WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)");
         
         // 2. Obtener IDs de ventas y compras afectadas
-        java.util.List<Long> ventasAfectadas = jdbcTemplate.queryForList("SELECT DISTINCT venta_id FROM detalles_venta WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)", Long.class);
-        java.util.List<Long> comprasAfectadas = jdbcTemplate.queryForList("SELECT DISTINCT compra_id FROM detalles_compra WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)", Long.class);
+        java.util.List<Long> ventasAfectadas = jdbcTemplate.queryForList("SELECT DISTINCT venta_id FROM detalle_ventas WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)", Long.class);
+        java.util.List<Long> comprasAfectadas = jdbcTemplate.queryForList("SELECT DISTINCT compra_id FROM detalle_compras WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)", Long.class);
         
         // 3. Borrar detalles
-        int detVentasDeleted = jdbcTemplate.update("DELETE FROM detalles_venta WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)");
-        int detComprasDeleted = jdbcTemplate.update("DELETE FROM detalles_compra WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)");
+        int detVentasDeleted = jdbcTemplate.update("DELETE FROM detalle_ventas WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)");
+        int detComprasDeleted = jdbcTemplate.update("DELETE FROM detalle_compras WHERE producto_id IN (SELECT id FROM productos WHERE activo = 0)");
         
         // 4. Borrar ventas y compras vacías (opcional, pero el usuario pidió borrarlas)
         int ventasDeleted = 0;
         if (!ventasAfectadas.isEmpty()) {
             String inSql = String.join(",", java.util.Collections.nCopies(ventasAfectadas.size(), "?"));
-            jdbcTemplate.update("DELETE FROM detalles_venta WHERE venta_id IN (" + inSql + ")", ventasAfectadas.toArray());
+            jdbcTemplate.update("DELETE FROM detalle_ventas WHERE venta_id IN (" + inSql + ")", ventasAfectadas.toArray());
             ventasDeleted = jdbcTemplate.update("DELETE FROM ventas WHERE id IN (" + inSql + ")", ventasAfectadas.toArray());
         }
         
         int comprasDeleted = 0;
         if (!comprasAfectadas.isEmpty()) {
             String inSql = String.join(",", java.util.Collections.nCopies(comprasAfectadas.size(), "?"));
-            jdbcTemplate.update("DELETE FROM detalles_compra WHERE compra_id IN (" + inSql + ")", comprasAfectadas.toArray());
+            jdbcTemplate.update("DELETE FROM detalle_compras WHERE compra_id IN (" + inSql + ")", comprasAfectadas.toArray());
             comprasDeleted = jdbcTemplate.update("DELETE FROM compras WHERE id IN (" + inSql + ")", comprasAfectadas.toArray());
         }
 
