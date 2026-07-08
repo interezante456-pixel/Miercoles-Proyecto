@@ -14,8 +14,8 @@ import org.springframework.context.annotation.Configuration;
 @OpenAPIDefinition(info = @Info(contact = @Contact(name = "Equipo de Desarrollo"),
 
                 description = "Documentación oficial de los endpoints de la API REST para el sistema Tiendas Mi Cholo S.A.C.<br><br>**Integrantes del Equipo:**<br>• BOÑON FERNANDEZ, JOSUE SAMUEL (100%)<br>• HUANGAL BRIONES, GIBSON BELIZARIO (100%)<br>• LLANOS MENDOZA, LENIS JHONATAN (100%)<br>• MEDINA ATALAYA, EDMAR ARLEN (100%)", title = "API REST - Tiendas Mi Cholo", version = "1.0"), servers = {
-                                @Server(description = "Producción (Nube - Render)", url = "https://tienda-backend-9mau.onrender.com"),
-                                @Server(description = "Entorno Local", url = "http://localhost:8080")
+                                @Server(description = "Producción (Nube - Render)", url = "https://tienda-backend-9mau.onrender.com/api"),
+                                @Server(description = "Entorno Local", url = "http://localhost:8080/api")
                 }, security = {
                                 @SecurityRequirement(name = "bearerAuth")
                 })
