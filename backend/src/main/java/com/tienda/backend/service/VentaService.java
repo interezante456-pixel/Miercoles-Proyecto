@@ -167,8 +167,8 @@ public class VentaService {
     }
 
     private String generarNumero(String prefijo) {
-        String fecha = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy"));
-        long count = ventaRepository.count() + 1;
-        return prefijo + "-" + fecha + "-" + String.format("%04d", count);
+        String fecha = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String random = java.util.UUID.randomUUID().toString().substring(0, 5).toUpperCase();
+        return prefijo + "-" + fecha + "-" + random;
     }
 }

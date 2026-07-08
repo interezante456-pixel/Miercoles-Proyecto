@@ -128,8 +128,8 @@ public class CompraService {
     }
 
     private String generarNumero() {
-        String fecha = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy"));
-        long count = compraRepository.count() + 1;
-        return "C-" + fecha + "-" + String.format("%04d", count);
+        String fecha = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String random = java.util.UUID.randomUUID().toString().substring(0, 5).toUpperCase();
+        return "C-" + fecha + "-" + random;
     }
 }
