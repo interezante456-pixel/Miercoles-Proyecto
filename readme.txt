@@ -120,14 +120,11 @@ Requisitos Previos:
 Puedes iniciar sesión utilizando las siguientes cuentas por defecto cargadas en la base de datos:
 
 * Rol Administrador:
-  - Identificador (DNI): 12345678
+  - Identificador (USERNAME): admin 
   - Contraseña: admin123
   - Descripción: Acceso completo a todo el sistema, reportes y gestión de usuarios.
 
-* Rol Usuario / Vendedor:
-  - Identificador (DNI): 87654321
-  - Contraseña: user1234
-  - Descripción: Acceso limitado a tareas transaccionales (ventas, compras, stock).
+
 
 ------------------------------------------------------------------------
 6. DOCUMENTACIÓN ADICIONAL
